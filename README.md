@@ -4,8 +4,8 @@ LabFlow 是免费开源的医疗样本检测与质控运营后台，覆盖样本
 
 ## 闭环流程
 
-1. 前台创建样本批次（`待签到`）。
-2. 样本签到后进入 `已签到`，运营人员推进到 `候诊中`、`检测中`。
+1. 前台创建样本批次（`待收样`）。
+2. 样本收样后进入 `已收样`，运营人员推进到 `检测排队`、`检测中`。
 3. 服务完成后进入 `已完成`；每次状态变化写入 `appointment_events`，可从详情页回放。
 4. 运营人员创建质控任务，执行完成后由 `待完成` 变为 `已完成`。
 5. 所有写请求要求 `Idempotency-Key`，Redis 负责幂等结果和并发锁，MySQL 8.4 负责持久化。
@@ -23,7 +23,7 @@ cd web && npm install && npm run dev
 
 前端默认请求 `/api/v1`，Vite 开发服务器会把 `/api` 和 `/healthz` 代理到 `http://localhost:8080`。部署到独立域名时，可在构建时设置 `VITE_API_BASE_URL=https://api.example.com`；客户端会自动补齐 `/api/v1`，所有创建、签到、状态推进和质控完成请求都会自动生成 `Idempotency-Key`。
 
-后台的“样本批次队列”和“质控任务”按钮会优先调用真实 API；API 暂不可用时保留内置演示数据并提示当前数据来源。侧栏“移动端体验”提供同一闭环的窄屏样本视图，支持创建演示样本批次、签到、候诊、检测完成和质控完成，便于用手机浏览器联调。
+后台的“样本批次队列”和“质控任务”按钮会优先调用真实 API；API 暂不可用时保留内置演示数据并提示当前数据来源。侧栏“移动端体验”提供同一闭环的窄屏样本视图，支持创建演示样本批次、收样、检测和质控完成，便于用手机浏览器联调。
 
 ## 闭环 API 示例
 
@@ -31,12 +31,12 @@ cd web && npm install && npm run dev
 # 创建样本批次（重复发送相同 Idempotency-Key 只会创建一次）
 curl -X POST http://localhost:8080/api/v1/appointments \
   -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-create-001' \
-  -d '{"patient":"演示样本","department":"全科门诊","doctor":"林实验员","scheduledAt":"2026-07-16T09:00:00+08:00"}'
+  -d '{"patient":"样本批次 A001","department":"生化检验","doctor":"林实验员","scheduledAt":"2026-07-16T09:00:00+08:00"}'
 
-# 推进状态：待签到 -> 已签到 -> 候诊中 -> 检测中 -> 已完成（将 AP-1001 替换为上一步返回的 id）
+# 推进状态：待收样 -> 已收样 -> 检测排队 -> 检测中 -> 已完成（将 LB-1001 替换为上一步返回的 id）
 curl -X POST http://localhost:8080/api/v1/appointments/AP-1001/checkin -H 'Idempotency-Key: demo-checkin-001'
 curl -X POST http://localhost:8080/api/v1/appointments/AP-1001/status \
-  -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-waiting-001' -d '{"status":"候诊中"}'
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-queue-001' -d '{"status":"检测排队"}'
 
 # 查看审计事件
 curl http://localhost:8080/api/v1/appointments/AP-1001/events

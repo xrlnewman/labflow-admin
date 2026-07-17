@@ -53,16 +53,16 @@ type MemoryStore struct {
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
 		appointments: map[string]Appointment{}, events: map[string][]AppointmentEvent{}, followups: map[string]Followup{},
-		departments: []Department{{ID: "dep-general", Name: "全科门诊"}, {ID: "dep-derma", Name: "皮肤科"}, {ID: "dep-rehab", Name: "康复理疗"}, {ID: "dep-nutrition", Name: "营养咨询"}},
-		doctors:     []Doctor{{ID: "doc-01", Name: "林实验员", Department: "全科门诊", Status: "出诊中", TodayCount: 18}, {ID: "doc-02", Name: "沈实验员", Department: "皮肤科", Status: "出诊中", TodayCount: 16}, {ID: "doc-03", Name: "赵实验员", Department: "康复理疗", Status: "出诊中", TodayCount: 12}, {ID: "doc-04", Name: "周实验员", Department: "营养咨询", Status: "休息中", TodayCount: 10}, {ID: "doc-05", Name: "陈实验员", Department: "全科门诊", Status: "出诊中", TodayCount: 14}, {ID: "doc-06", Name: "王实验员", Department: "皮肤科", Status: "出诊中", TodayCount: 16}},
+		departments: []Department{{ID: "line-biochem", Name: "生化检验"}, {ID: "line-micro", Name: "微生物检验"}, {ID: "line-immuno", Name: "免疫检验"}, {ID: "line-molecular", Name: "分子诊断"}},
+		doctors:     []Doctor{{ID: "tech-01", Name: "林实验员", Department: "生化检验", Status: "检测中", TodayCount: 18}, {ID: "tech-02", Name: "沈实验员", Department: "微生物检验", Status: "检测中", TodayCount: 16}, {ID: "tech-03", Name: "赵实验员", Department: "免疫检验", Status: "检测中", TodayCount: 12}, {ID: "tech-04", Name: "周实验员", Department: "分子诊断", Status: "休息中", TodayCount: 10}, {ID: "tech-05", Name: "陈实验员", Department: "生化检验", Status: "检测中", TodayCount: 14}, {ID: "tech-06", Name: "王实验员", Department: "微生物检验", Status: "检测中", TodayCount: 16}},
 	}
 	for i := 1; i <= 30; i++ {
-		s.patients = append(s.patients, Patient{ID: fmt.Sprintf("PT-%03d", i), Name: fmt.Sprintf("演示样本%02d", i), Phone: fmt.Sprintf("1380000%04d", i), LastVisit: "2026-07-15"})
+		s.patients = append(s.patients, Patient{ID: fmt.Sprintf("LB-%03d", i), Name: fmt.Sprintf("样本批次 A%03d", i), Phone: fmt.Sprintf("1380000%04d", i), LastVisit: "2026-07-15"})
 	}
 	statuses := []string{AppointmentCompleted, AppointmentServing, AppointmentWaiting, AppointmentChecked, AppointmentPending}
 	for i := 1; i <= 20; i++ {
 		status := statuses[(i-1)%len(statuses)]
-		id := fmt.Sprintf("AP-0716-%03d", 80+i)
+		id := fmt.Sprintf("LB-0716-%03d", 80+i)
 		s.appointments[id] = Appointment{ID: id, PatientID: fmt.Sprintf("PT-%03d", i), Patient: s.patients[i-1].Name, Department: s.departments[(i-1)%len(s.departments)].Name, Doctor: s.doctors[(i-1)%len(s.doctors)].Name, ScheduledAt: fmt.Sprintf("2026-07-16T%02d:00:00+08:00", 8+(i%10)), Status: status, CreatedAt: nowUTC(), UpdatedAt: nowUTC()}
 		if status != AppointmentPending {
 			s.events[id] = append(s.events[id], AppointmentEvent{ID: id + "-EV-1", AppointmentID: id, FromStatus: AppointmentPending, ToStatus: status, Actor: "seed", CreatedAt: nowUTC()})
@@ -70,7 +70,7 @@ func NewMemoryStore() *MemoryStore {
 	}
 	for i := 1; i <= 12; i++ {
 		id := fmt.Sprintf("FW-0716-%03d", i)
-		s.followups[id] = Followup{ID: id, PatientID: fmt.Sprintf("PT-%03d", i), Patient: s.patients[i-1].Name, Summary: "复诊提醒与满意度回访", DueAt: "2026-07-17", Status: FollowupPending, CreatedAt: nowUTC(), UpdatedAt: nowUTC()}
+		s.followups[id] = Followup{ID: id, PatientID: fmt.Sprintf("LB-%03d", i), Patient: s.patients[i-1].Name, Summary: "质控曲线复核与结果归档", DueAt: "2026-07-17", Status: FollowupPending, CreatedAt: nowUTC(), UpdatedAt: nowUTC()}
 	}
 	s.seq.Store(1000)
 	return s
@@ -255,7 +255,7 @@ func NewSQLStore(ctx context.Context, dsn string) (*SQLStore, error) {
 }
 func (s *SQLStore) Dashboard(ctx context.Context) (Dashboard, error) {
 	var d Dashboard
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(status='已完成'),0), COALESCE(SUM(status IN ('已签到','候诊中','检测中')),0) FROM appointments`).Scan(&d.TodayAppointments, &d.Completed, &d.CheckedIn)
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(status='已完成'),0), COALESCE(SUM(status IN ('已收样','检测排队','检测中')),0) FROM appointments`).Scan(&d.TodayAppointments, &d.Completed, &d.CheckedIn)
 	if err != nil {
 		return d, err
 	}

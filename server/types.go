@@ -2,7 +2,7 @@ package main
 
 import "time"
 
-// Appointment is a clinic appointment in the operational workflow.
+// Appointment is a sample batch in the laboratory operational workflow.
 type Appointment struct {
 	ID          string `json:"id"`
 	PatientID   string `json:"patientId,omitempty"`
@@ -25,13 +25,13 @@ type AppointmentEvent struct {
 	CreatedAt     string `json:"createdAt"`
 }
 
-// Department is a clinic service line.
+// Department is a laboratory testing line.
 type Department struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-// Doctor is an operational provider profile, not a medical record.
+// Doctor is an operational laboratory technician profile.
 type Doctor struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
@@ -40,7 +40,7 @@ type Doctor struct {
 	TodayCount int    `json:"todayCount"`
 }
 
-// Patient contains synthetic identifiers used by the demo workflow.
+// Patient contains synthetic sample identifiers used by the demo workflow.
 type Patient struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -48,7 +48,7 @@ type Patient struct {
 	LastVisit string `json:"lastVisit"`
 }
 
-// Followup is a non-diagnostic operational callback task.
+// Followup is a laboratory quality-control task.
 type Followup struct {
 	ID        string `json:"id"`
 	PatientID string `json:"patientId,omitempty"`
@@ -93,12 +93,12 @@ type Dashboard struct {
 }
 
 const (
-	AppointmentPending   = "待签到"
-	AppointmentChecked   = "已签到"
-	AppointmentWaiting   = "候诊中"
+	AppointmentPending   = "待收样"
+	AppointmentChecked   = "已收样"
+	AppointmentWaiting   = "检测排队"
 	AppointmentServing   = "检测中"
 	AppointmentCompleted = "已完成"
-	AppointmentCancelled = "已取消"
+	AppointmentCancelled = "已作废"
 	FollowupPending      = "待完成"
 	FollowupCompleted    = "已完成"
 )

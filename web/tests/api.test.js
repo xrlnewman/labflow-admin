@@ -18,14 +18,14 @@ test('defaults to /api/v1 and adds an idempotency key to writes', async () => {
   const client = createApiClient({
     fetchImpl: async (url, init) => {
       requests.push({ url, init })
-      return response({ id: 'AP-1', status: '已签到' })
+      return response({ id: 'LB-1', status: '已收样' })
     },
   })
 
-  const appointment = await client.checkinAppointment('AP-1')
+  const appointment = await client.checkinAppointment('LB-1')
 
-  assert.equal(appointment.id, 'AP-1')
-  assert.equal(requests[0].url, '/api/v1/appointments/AP-1/checkin')
+  assert.equal(appointment.id, 'LB-1')
+  assert.equal(requests[0].url, '/api/v1/appointments/LB-1/checkin')
   assert.equal(requests[0].init.method, 'POST')
   assert.match(requests[0].init.headers['Idempotency-Key'], /^cf-/)
 })
@@ -56,7 +56,7 @@ test('rejects non-zero API envelopes so callers can keep demo data', async () =>
     }),
   })
 
-  await assert.rejects(() => client.updateAppointmentStatus('AP-1', '候诊中'), /状态不可推进/)
+  await assert.rejects(() => client.updateAppointmentStatus('LB-1', '检测排队'), /状态不可推进/)
 })
 
 test('exposes mobile lifecycle and follow-up operations through the same client', async () => {
@@ -68,19 +68,19 @@ test('exposes mobile lifecycle and follow-up operations through the same client'
     },
   })
 
-  await client.createAppointment({ patient: '演示样本', department: '全科门诊' })
-  await client.checkinAppointment('AP-1')
-  await client.updateAppointmentStatus('AP-1', '候诊中')
-  await client.updateAppointmentStatus('AP-1', '检测中')
-  await client.updateAppointmentStatus('AP-1', '已完成')
+  await client.createAppointment({ patient: '样本批次 A001', department: '生化检验' })
+  await client.checkinAppointment('LB-1')
+  await client.updateAppointmentStatus('LB-1', '检测排队')
+  await client.updateAppointmentStatus('LB-1', '检测中')
+  await client.updateAppointmentStatus('LB-1', '已完成')
   await client.completeFollowup('FW-1')
 
   assert.deepEqual(paths, [
     '/api/v1/appointments',
-    '/api/v1/appointments/AP-1/checkin',
-    '/api/v1/appointments/AP-1/status',
-    '/api/v1/appointments/AP-1/status',
-    '/api/v1/appointments/AP-1/status',
+    '/api/v1/appointments/LB-1/checkin',
+    '/api/v1/appointments/LB-1/status',
+    '/api/v1/appointments/LB-1/status',
+    '/api/v1/appointments/LB-1/status',
     '/api/v1/followups/FW-1/complete',
   ])
 })

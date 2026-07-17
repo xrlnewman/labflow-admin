@@ -10,11 +10,11 @@ func TestAppointmentStatusTransitions(t *testing.T) {
 	store := NewMemoryStore()
 	svc := NewCareService(store, NoopIdempotency{})
 	ctx := context.Background()
-	appointment, err := svc.CreateAppointment(ctx, CreateAppointmentInput{Patient: "林晓雨", Department: "全科门诊", Doctor: "林实验员", ScheduledAt: "2026-07-16T09:00:00+08:00"}, "create-1")
+	appointment, err := svc.CreateAppointment(ctx, CreateAppointmentInput{Patient: "样本批次 A001", Department: "生化检验", Doctor: "林实验员", ScheduledAt: "2026-07-16T09:00:00+08:00"}, "create-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	steps := []string{"已签到", "候诊中", "检测中", "已完成"}
+	steps := []string{"已收样", "检测排队", "检测中", "已完成"}
 	for _, status := range steps {
 		appointment, err = svc.UpdateAppointmentStatus(ctx, appointment.ID, status, "status-"+status)
 		if err != nil {
@@ -24,7 +24,7 @@ func TestAppointmentStatusTransitions(t *testing.T) {
 			t.Fatalf("status = %q, want %q", appointment.Status, status)
 		}
 	}
-	if _, err := svc.UpdateAppointmentStatus(ctx, appointment.ID, "检测中", "illegal-1"); !errors.Is(err, ErrInvalidTransition) {
+	if _, err := svc.UpdateAppointmentStatus(ctx, appointment.ID, "检测排队", "illegal-1"); !errors.Is(err, ErrInvalidTransition) {
 		t.Fatalf("expected invalid transition, got %v", err)
 	}
 	events, err := store.ListAppointmentEvents(ctx, appointment.ID)
@@ -48,7 +48,7 @@ func TestAppointmentWriteRequiresIdempotencyKey(t *testing.T) {
 func TestAppointmentWriteIsIdempotent(t *testing.T) {
 	store := NewMemoryStore()
 	svc := NewCareService(store, NoopIdempotency{})
-	input := CreateAppointmentInput{Patient: "赵可心", Department: "皮肤科", Doctor: "沈实验员"}
+	input := CreateAppointmentInput{Patient: "样本批次 B001", Department: "微生物检验", Doctor: "沈实验员"}
 	a, err := svc.CreateAppointment(context.Background(), input, "same-key")
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestAppointmentWriteIsIdempotent(t *testing.T) {
 func TestFollowupCompletesOnce(t *testing.T) {
 	store := NewMemoryStore()
 	svc := NewCareService(store, NoopIdempotency{})
-	followup, err := store.CreateFollowup(context.Background(), Followup{Patient: "林晓雨", Summary: "术后回访"})
+	followup, err := store.CreateFollowup(context.Background(), Followup{Patient: "样本批次 A001", Summary: "质控曲线复核"})
 	if err != nil {
 		t.Fatal(err)
 	}
