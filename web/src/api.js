@@ -66,6 +66,14 @@ export function createApiClient({ baseUrl, fetchImpl = globalThis.fetch } = {}) 
     listFollowups: (query) => request(withQuery('/followups', query)),
     createFollowup: (input, idempotencyKey) => request('/followups', { method: 'POST', body: input, idempotencyKey }),
     completeFollowup: (id, idempotencyKey) => request(`/followups/${encodeURIComponent(id)}/complete`, { method: 'POST', idempotencyKey }),
+    listSamples: (query) => request(withQuery('/samples', query)),
+    getSample: (id) => request(`/samples/${encodeURIComponent(id)}`),
+    createSample: (input, idempotencyKey) => request('/samples', { method: 'POST', body: input, idempotencyKey }),
+    receiveSample: (id, actor, idempotencyKey) => request(`/samples/${encodeURIComponent(id)}/receive`, { method: 'POST', body: { actor }, idempotencyKey }),
+    startSampleTest: (id, actor, idempotencyKey) => request(`/samples/${encodeURIComponent(id)}/start-test`, { method: 'POST', body: { actor }, idempotencyKey }),
+    reportSample: (id, input, idempotencyKey) => request(`/samples/${encodeURIComponent(id)}/report`, { method: 'POST', body: input, idempotencyKey }),
+    reviewSample: (id, actor, idempotencyKey) => request(`/samples/${encodeURIComponent(id)}/review`, { method: 'POST', body: { actor }, idempotencyKey }),
+    archiveSample: (id, actor, idempotencyKey) => request(`/samples/${encodeURIComponent(id)}/archive`, { method: 'POST', body: { actor }, idempotencyKey }),
   }
 }
 

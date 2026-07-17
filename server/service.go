@@ -51,6 +51,125 @@ func (s *CareService) CreateAppointment(ctx context.Context, input CreateAppoint
 	return a, nil
 }
 
+func (s *CareService) CreateSample(ctx context.Context, input CreateSampleInput, key string) (Sample, error) {
+	if strings.TrimSpace(key) == "" {
+		return Sample{}, ErrMissingIdempotencyKey
+	}
+	if strings.TrimSpace(input.SubjectAlias) == "" {
+		return Sample{}, fmt.Errorf("%w: subject alias is required", ErrInvalidInput)
+	}
+	tests := make([]SampleTest, 0, len(input.Tests))
+	for _, name := range input.Tests {
+		if value := strings.TrimSpace(name); value != "" {
+			tests = append(tests, SampleTest{Name: value})
+		}
+	}
+	if len(tests) == 0 {
+		return Sample{}, fmt.Errorf("%w: at least one test is required", ErrInvalidInput)
+	}
+	resourceKey := "sample:create:" + key
+	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
+		return Sample{}, err
+	} else if ok {
+		return s.store.GetSample(ctx, existing)
+	}
+	release, err := s.idem.Lock(ctx, "sample:create-lock", 10*time.Second)
+	if err != nil {
+		return Sample{}, err
+	}
+	defer release()
+	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
+		return Sample{}, err
+	} else if ok {
+		return s.store.GetSample(ctx, existing)
+	}
+	sample, err := s.store.CreateSample(ctx, Sample{SubjectAlias: strings.TrimSpace(input.SubjectAlias), SampleType: strings.TrimSpace(input.SampleType), CollectedAt: strings.TrimSpace(input.CollectedAt), Status: SampleStatusSubmitted}, tests)
+	if err != nil {
+		return Sample{}, err
+	}
+	if err := s.idem.Set(ctx, resourceKey, sample.ID, 24*time.Hour); err != nil {
+		return Sample{}, err
+	}
+	return s.store.GetSample(ctx, sample.ID)
+}
+
+func (s *CareService) ReceiveSample(ctx context.Context, id, actor, key string) (Sample, error) {
+	return s.transitionSample(ctx, id, "接收样本", actor, key)
+}
+
+func (s *CareService) StartSampleTest(ctx context.Context, id, actor, key string) (Sample, error) {
+	return s.transitionSample(ctx, id, "开始检验", actor, key)
+}
+
+func (s *CareService) ReviewSample(ctx context.Context, id, actor, key string) (Sample, error) {
+	return s.transitionSample(ctx, id, "复核报告", actor, key)
+}
+
+func (s *CareService) ArchiveSample(ctx context.Context, id, actor, key string) (Sample, error) {
+	return s.transitionSample(ctx, id, "归档报告", actor, key)
+}
+
+func (s *CareService) transitionSample(ctx context.Context, id, action, actor, key string) (Sample, error) {
+	if strings.TrimSpace(key) == "" {
+		return Sample{}, ErrMissingIdempotencyKey
+	}
+	resourceKey := "sample:action:" + id + ":" + action + ":" + key
+	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
+		return Sample{}, err
+	} else if ok {
+		return s.store.GetSample(ctx, existing)
+	}
+	release, err := s.idem.Lock(ctx, "sample:action-lock:"+id, 10*time.Second)
+	if err != nil {
+		return Sample{}, err
+	}
+	defer release()
+	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
+		return Sample{}, err
+	} else if ok {
+		return s.store.GetSample(ctx, existing)
+	}
+	if _, _, err := s.store.TransitionSample(ctx, id, action, actor); err != nil {
+		return Sample{}, err
+	}
+	if err := s.idem.Set(ctx, resourceKey, id, 24*time.Hour); err != nil {
+		return Sample{}, err
+	}
+	return s.store.GetSample(ctx, id)
+}
+
+func (s *CareService) ReportSample(ctx context.Context, id string, input CreateReportInput, key string) (Sample, error) {
+	if strings.TrimSpace(key) == "" {
+		return Sample{}, ErrMissingIdempotencyKey
+	}
+	if strings.TrimSpace(input.Result) == "" {
+		return Sample{}, fmt.Errorf("%w: result is required", ErrInvalidInput)
+	}
+	resourceKey := "sample:report:" + id + ":" + key
+	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
+		return Sample{}, err
+	} else if ok {
+		return s.store.GetSample(ctx, existing)
+	}
+	release, err := s.idem.Lock(ctx, "sample:report-lock:"+id, 10*time.Second)
+	if err != nil {
+		return Sample{}, err
+	}
+	defer release()
+	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
+		return Sample{}, err
+	} else if ok {
+		return s.store.GetSample(ctx, existing)
+	}
+	if _, _, err := s.store.SaveSampleReport(ctx, id, SampleReport{Result: strings.TrimSpace(input.Result), Remark: strings.TrimSpace(input.Remark)}); err != nil {
+		return Sample{}, err
+	}
+	if err := s.idem.Set(ctx, resourceKey, id, 24*time.Hour); err != nil {
+		return Sample{}, err
+	}
+	return s.store.GetSample(ctx, id)
+}
+
 func (s *CareService) CheckinAppointment(ctx context.Context, id, key string) (Appointment, error) {
 	return s.UpdateAppointmentStatus(ctx, id, AppointmentChecked, "前台", key)
 }

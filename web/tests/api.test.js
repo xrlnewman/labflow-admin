@@ -84,3 +84,30 @@ test('exposes mobile lifecycle and follow-up operations through the same client'
     '/api/v1/followups/FW-1/complete',
   ])
 })
+
+test('exposes sample report lifecycle with query filters and idempotency', async () => {
+  const requests = []
+  const client = createApiClient({
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init })
+      return response({ id: 'SM-1', status: '已接收', events: [] })
+    },
+  })
+
+  await client.listSamples({ page: 1, pageSize: 20, status: '待复核', keyword: '受检者' })
+  await client.getSample('SM-1')
+  await client.createSample({ subjectAlias: '受检者-01', sampleType: '血液', tests: ['血常规'] }, 'sample-key')
+  await client.receiveSample('SM-1', '收样员', 'receive-key')
+  await client.startSampleTest('SM-1', '检验员')
+  await client.reportSample('SM-1', { result: '阴性', remark: '稳定' })
+  await client.reviewSample('SM-1', '审核员')
+  await client.archiveSample('SM-1', '归档员')
+
+  assert.equal(requests[0].url, '/api/v1/samples?page=1&pageSize=20&status=%E5%BE%85%E5%A4%8D%E6%A0%B8&keyword=%E5%8F%97%E6%A3%80%E8%80%85')
+  assert.equal(requests[2].init.headers['Idempotency-Key'], 'sample-key')
+  assert.equal(requests[3].url, '/api/v1/samples/SM-1/receive')
+  assert.equal(requests[4].url, '/api/v1/samples/SM-1/start-test')
+  assert.equal(requests[5].url, '/api/v1/samples/SM-1/report')
+  assert.equal(requests[6].url, '/api/v1/samples/SM-1/review')
+  assert.equal(requests[7].url, '/api/v1/samples/SM-1/archive')
+})

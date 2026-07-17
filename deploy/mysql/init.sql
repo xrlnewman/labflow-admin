@@ -49,6 +49,45 @@ CREATE TABLE IF NOT EXISTS followups (
   updated_at VARCHAR(64) NOT NULL,
   INDEX idx_followups_status_due (status, due_at)
 );
+CREATE TABLE IF NOT EXISTS samples (
+  id VARCHAR(64) PRIMARY KEY,
+  subject_alias VARCHAR(128) NOT NULL,
+  sample_type VARCHAR(64) NOT NULL,
+  collected_at VARCHAR(64) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  created_at VARCHAR(64) NOT NULL,
+  updated_at VARCHAR(64) NOT NULL,
+  INDEX idx_samples_status_updated (status, updated_at),
+  INDEX idx_samples_subject_alias (subject_alias)
+);
+CREATE TABLE IF NOT EXISTS sample_tests (
+  id VARCHAR(64) PRIMARY KEY,
+  sample_id VARCHAR(64) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  created_at VARCHAR(64) NOT NULL,
+  INDEX idx_sample_tests_sample (sample_id, id)
+);
+CREATE TABLE IF NOT EXISTS sample_reports (
+  id VARCHAR(64) PRIMARY KEY,
+  sample_id VARCHAR(64) NOT NULL,
+  result VARCHAR(255) NOT NULL,
+  remark VARCHAR(500) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  created_at VARCHAR(64) NOT NULL,
+  updated_at VARCHAR(64) NOT NULL,
+  INDEX idx_sample_reports_sample (sample_id, created_at)
+);
+CREATE TABLE IF NOT EXISTS sample_events (
+  id VARCHAR(64) PRIMARY KEY,
+  sample_id VARCHAR(64) NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  from_status VARCHAR(32) NOT NULL,
+  to_status VARCHAR(32) NOT NULL,
+  actor VARCHAR(64) NOT NULL,
+  created_at VARCHAR(64) NOT NULL,
+  INDEX idx_sample_events_sample (sample_id, created_at)
+);
 
 INSERT IGNORE INTO departments (id,name) VALUES
  ('line-biochem','生化检验'),('line-micro','微生物检验'),('line-immuno','免疫检验'),('line-molecular','分子诊断');
@@ -98,3 +137,33 @@ INSERT IGNORE INTO followups (id,patient_id,patient_name,summary,due_at,status,c
  ('QC-0716-010','PT-010','样本批次 A010','满意度与时效复盘','2026-07-21','待完成','2026-07-16T00:00:00Z','2026-07-16T00:00:00Z'),
  ('QC-0716-011','PT-011','样本批次 A011','设备维护提醒','2026-07-22','待完成','2026-07-16T00:00:00Z','2026-07-16T00:00:00Z'),
  ('QC-0716-012','PT-012','样本批次 A012','质控数据归档','2026-07-22','待完成','2026-07-16T00:00:00Z','2026-07-16T00:00:00Z');
+INSERT IGNORE INTO samples (id,subject_alias,sample_type,collected_at,status,created_at,updated_at) VALUES
+ ('SM-0717-001','受检者-001','血液','2026-07-17T08:00:00Z','待送检','2026-07-17T00:00:00Z','2026-07-17T00:00:00Z'),
+ ('SM-0717-002','受检者-002','尿液','2026-07-17T09:00:00Z','已接收','2026-07-17T00:00:00Z','2026-07-17T00:10:00Z'),
+ ('SM-0717-003','受检者-003','咽拭子','2026-07-17T09:30:00Z','检验中','2026-07-17T00:20:00Z','2026-07-17T01:00:00Z'),
+ ('SM-0717-004','受检者-004','血液','2026-07-17T10:00:00Z','待复核','2026-07-17T00:30:00Z','2026-07-17T01:20:00Z'),
+ ('SM-0717-005','受检者-005','尿液','2026-07-17T10:30:00Z','已出报告','2026-07-17T00:40:00Z','2026-07-17T01:30:00Z'),
+ ('SM-0717-006','受检者-006','咽拭子','2026-07-17T11:00:00Z','已归档','2026-07-17T00:50:00Z','2026-07-17T01:40:00Z');
+INSERT IGNORE INTO sample_tests (id,sample_id,name,status,created_at) VALUES
+ ('SM-0717-001-T1','SM-0717-001','基础检验','待检验','2026-07-17T00:00:00Z'),
+ ('SM-0717-002-T1','SM-0717-002','基础检验','待检验','2026-07-17T00:00:00Z'),
+ ('SM-0717-003-T1','SM-0717-003','基础检验','待检验','2026-07-17T00:00:00Z'),
+ ('SM-0717-004-T1','SM-0717-004','基础检验','待检验','2026-07-17T00:00:00Z'),
+ ('SM-0717-005-T1','SM-0717-005','基础检验','待检验','2026-07-17T00:00:00Z'),
+ ('SM-0717-006-T1','SM-0717-006','基础检验','待检验','2026-07-17T00:00:00Z');
+INSERT IGNORE INTO sample_events (id,sample_id,action,from_status,to_status,actor,created_at) VALUES
+ ('SM-0717-002-E1','SM-0717-002','接收样本','待送检','已接收','seed','2026-07-17T01:00:00Z'),
+ ('SM-0717-003-E1','SM-0717-003','接收样本','待送检','已接收','seed','2026-07-17T01:00:00Z'),
+ ('SM-0717-003-E2','SM-0717-003','开始检验','已接收','检验中','seed','2026-07-17T02:00:00Z'),
+ ('SM-0717-004-E1','SM-0717-004','接收样本','待送检','已接收','seed','2026-07-17T01:00:00Z'),
+ ('SM-0717-004-E2','SM-0717-004','开始检验','已接收','检验中','seed','2026-07-17T02:00:00Z'),
+ ('SM-0717-004-E3','SM-0717-004','提交报告','检验中','待复核','seed','2026-07-17T03:00:00Z'),
+ ('SM-0717-005-E1','SM-0717-005','接收样本','待送检','已接收','seed','2026-07-17T01:00:00Z'),
+ ('SM-0717-005-E2','SM-0717-005','开始检验','已接收','检验中','seed','2026-07-17T02:00:00Z'),
+ ('SM-0717-005-E3','SM-0717-005','提交报告','检验中','待复核','seed','2026-07-17T03:00:00Z'),
+ ('SM-0717-005-E4','SM-0717-005','复核报告','待复核','已出报告','seed','2026-07-17T04:00:00Z'),
+ ('SM-0717-006-E1','SM-0717-006','接收样本','待送检','已接收','seed','2026-07-17T01:00:00Z'),
+ ('SM-0717-006-E2','SM-0717-006','开始检验','已接收','检验中','seed','2026-07-17T02:00:00Z'),
+ ('SM-0717-006-E3','SM-0717-006','提交报告','检验中','待复核','seed','2026-07-17T03:00:00Z'),
+ ('SM-0717-006-E4','SM-0717-006','复核报告','待复核','已出报告','seed','2026-07-17T04:00:00Z'),
+ ('SM-0717-006-E5','SM-0717-006','归档报告','已出报告','已归档','seed','2026-07-17T05:00:00Z');

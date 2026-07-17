@@ -18,10 +18,18 @@ const demoFollowups = [
   { id: 'QC-0715-009', patient: '样本批次 A079', summary: '设备校准记录归档', dueAt: '已完成', status: '已完成' },
 ]
 
+const demoSamples = [
+  { id: 'SM-0717-001', subjectAlias: '受检者-001', sampleType: '血液', collectedAt: '2026-07-17T08:00:00Z', status: '待送检', tests: [{ name: '血常规' }] },
+  { id: 'SM-0717-002', subjectAlias: '受检者-002', sampleType: '尿液', collectedAt: '2026-07-17T09:00:00Z', status: '已接收', tests: [{ name: '尿常规' }] },
+  { id: 'SM-0717-003', subjectAlias: '受检者-003', sampleType: '咽拭子', collectedAt: '2026-07-17T09:30:00Z', status: '检验中', tests: [{ name: '病原筛查' }] },
+  { id: 'SM-0717-004', subjectAlias: '受检者-004', sampleType: '血液', collectedAt: '2026-07-17T10:00:00Z', status: '待复核', tests: [{ name: '生化组合' }], report: { result: '阴性', remark: '需双人复核' } },
+]
+
 const demoDashboard = { todayAppointments: 86, averageWaitMinutes: 12, completed: 58, checkedIn: 42, pendingFollowups: 12 }
 const statusColors = { 待收样: 'coral', 已收样: 'indigo', 检测排队: 'amber', 检测中: 'green', 已完成: 'green', 已作废: 'gray' }
 const nav = [
   ['overview', '运营总览', '⌂'],
+  ['samples', '样本送检', '◌'],
   ['queue', '样本批次队列', '▤'],
   ['doctors', '实验员排班', '◉'],
   ['patients', '样本档案', '♧'],
@@ -31,6 +39,7 @@ const nav = [
 
 let appointments = demoAppointments.map((item) => ({ ...item }))
 let followupTasks = demoFollowups.map((item) => ({ ...item }))
+let samples = demoSamples.map((item) => ({ ...item }))
 let dashboard = { ...demoDashboard }
 let page = 'overview'
 let toast = ''
@@ -66,6 +75,10 @@ function normalizeFollowup(item) {
   }
 }
 
+function normalizeSample(item) {
+  return { ...item, subjectAlias: item.subjectAlias || '未命名受检者', sampleType: item.sampleType || '未分类', status: item.status || '待送检', tests: Array.isArray(item.tests) ? item.tests : [] }
+}
+
 function showToast(message) {
   toast = message
   render()
@@ -90,7 +103,7 @@ function header(title) {
 
 function render() {
   const title = nav.find((item) => item[0] === page)?.[1] || '运营总览'
-  const content = page === 'overview' ? overview() : page === 'queue' ? queue() : page === 'doctors' ? doctors() : page === 'patients' ? patients() : page === 'followups' ? followups() : mobileView()
+  const content = page === 'overview' ? overview() : page === 'samples' ? sampleQueue() : page === 'queue' ? queue() : page === 'doctors' ? doctors() : page === 'patients' ? patients() : page === 'followups' ? followups() : mobileView()
   document.querySelector('#app').innerHTML = `<div class="shell"><aside><div class="brand"><span>✚</span><div><strong>LabFlow</strong><small>实验室运营中心</small></div></div><div class="clinic">● 上海静安联合实验室　⌄</div><p class="caption">样本运营</p><nav>${nav.map((item) => `<button class="${page === item[0] ? 'active' : ''}" data-page="${item[0]}"><i>${item[2]}</i>${item[1]}${item[0] === 'queue' ? '<em>8</em>' : ''}</button>`).join('')}</nav><div class="user"><b>许</b><span><strong>许汝林</strong><small>运营管理员</small></span></div></aside><main>${header(title)}<section class="heading"><div><p>THURSDAY, JUL 16 · LABFLOW</p><h1>${title} <i>✦</i></h1><label>让每一个样本批次，都有清晰可追踪的下一步。</label></div><button class="primary" data-action="create-appointment">＋ 新建样本批次</button></section>${content}<footer>LabFlow 医疗样本检测与质控 · 免费开源 · 演示数据不含真实样本隐私</footer><div class="toast" ${toast ? '' : 'hidden'}>${toast}</div></main></div>`
   bind()
 }
@@ -101,6 +114,19 @@ function overview() {
 
 function queue() {
   return `<section class="panel full"><div class="panel-head"><div><h2>样本批次队列</h2><p>${dataSource === 'API 数据' ? 'API 实时样本批次' : '20 条演示样本批次'} · 支持收样、排队、检测和完成</p></div><span class="chip">今天　⌄</span></div><div class="table"><div class="th"><span>批次编号 / 样本</span><span>检验线</span><span>时间</span><span>状态</span><span>操作</span></div>${appointments.concat(dataSource === 'API 数据' ? [] : appointments.slice(0, 3)).map((appointment) => `<div class="tr"><span><strong>${appointment.id}</strong><small>${appointment.patient}</small></span><span>${appointment.department}</span><span>${timeLabel(appointment.scheduledAt)}</span><b class="status ${statusColors[appointment.status] || 'indigo'}">${appointment.status}</b><span>${appointmentAction(appointment)}</span></div>`).join('')}</div></section>`
+}
+
+function sampleAction(sample) {
+  if (sample.status === '待送检') return `<button class="text-action" data-action="receive-sample" data-sample-id="${sample.id}">接收样本</button>`
+  if (sample.status === '已接收') return `<button class="text-action" data-action="start-sample-test" data-sample-id="${sample.id}">开始检验</button>`
+  if (sample.status === '检验中') return `<button class="text-action" data-action="report-sample" data-sample-id="${sample.id}">提交报告</button>`
+  if (sample.status === '待复核') return `<button class="text-action" data-action="review-sample" data-sample-id="${sample.id}">复核报告</button>`
+  if (sample.status === '已出报告') return `<button class="text-action" data-action="archive-sample" data-sample-id="${sample.id}">归档报告</button>`
+  return '<span class="muted-action">已完成闭环</span>'
+}
+
+function sampleQueue() {
+  return `<section class="panel full"><div class="panel-head"><div><h2>样本送检</h2><p>${dataSource === 'API 数据' ? 'API 实时样本' : '4 条虚构样本'} · 送检、检验、报告和归档全流程</p></div><span class="chip">虚构数据 / 演示流程</span></div><div class="table"><div class="th"><span>样本编号 / 受检者</span><span>样本类型</span><span>检验项目</span><span>状态</span><span>操作</span></div>${samples.length ? samples.map((sample) => `<div class="tr"><span><strong>${sample.id}</strong><small>${sample.subjectAlias}</small></span><span>${sample.sampleType}</span><span>${sample.tests.map((item) => item.name).join('、') || '待配置'}</span><b class="status ${sample.status === '已归档' ? 'green' : sample.status === '待复核' ? 'amber' : 'indigo'}">${sample.status}</b><span>${sampleAction(sample)}</span></div>`).join('') : '<div class="empty">暂无样本，点击新建样本送检</div>'}</div><div class="sample-note">报告结果仅用于演示；样本详情包含完整事件时间线。</div></section>`
 }
 
 function doctors() {
@@ -124,14 +150,16 @@ async function refreshFromApi({ quiet = false } = {}) {
   isSyncing = true
   render()
   try {
-    const [nextDashboard, nextAppointments, nextFollowups] = await Promise.all([
+    const [nextDashboard, nextAppointments, nextFollowups, nextSamples] = await Promise.all([
       api.getDashboard(),
       api.listAppointments({ page: 1, pageSize: 20 }),
       api.listFollowups({ page: 1, pageSize: 20 }),
+      api.listSamples({ page: 1, pageSize: 20 }),
     ])
     dashboard = { ...demoDashboard, ...nextDashboard }
     appointments = (nextAppointments?.list || []).map(normalizeAppointment)
     followupTasks = (nextFollowups?.list || []).map(normalizeFollowup)
+    samples = (nextSamples?.list || []).map(normalizeSample)
     dataSource = 'API 数据'
     if (!quiet) toast = '已从 LabFlow API 刷新样本数据'
   } catch (error) {
@@ -140,6 +168,28 @@ async function refreshFromApi({ quiet = false } = {}) {
   } finally {
     isSyncing = false
     render()
+  }
+}
+
+async function sampleActionHandler(button) {
+  const id = button.dataset.sampleId
+  const sample = samples.find((item) => item.id === id)
+  if (!sample) return
+  try {
+    let updated
+    if (button.dataset.action === 'receive-sample') updated = await api.receiveSample(id, '收样员')
+    if (button.dataset.action === 'start-sample-test') updated = await api.startSampleTest(id, '检验员')
+    if (button.dataset.action === 'report-sample') updated = await api.reportSample(id, { result: '阴性', remark: '演示报告，等待复核' })
+    if (button.dataset.action === 'review-sample') updated = await api.reviewSample(id, '审核员')
+    if (button.dataset.action === 'archive-sample') updated = await api.archiveSample(id, '归档员')
+    if (updated) {
+      const detail = await api.getSample(id)
+      samples = samples.map((item) => item.id === id ? normalizeSample(detail || updated) : item)
+      dataSource = 'API 数据'
+      showToast(`${sample.subjectAlias} 已更新为${updated.status}`)
+    }
+  } catch (error) {
+    showToast(`样本操作失败：${error.message}`)
   }
 }
 
@@ -202,6 +252,7 @@ function bind() {
   document.querySelectorAll('[data-action]').forEach((element) => element.addEventListener('click', () => {
     if (element.dataset.action === 'checkin' || element.dataset.action === 'status') return advanceAppointment(element)
     if (element.dataset.action === 'complete-followup') return completeFollowup(element)
+    if (['receive-sample', 'start-sample-test', 'report-sample', 'review-sample', 'archive-sample'].includes(element.dataset.action)) return sampleActionHandler(element)
     if (element.dataset.action === 'create-appointment') return createAppointment()
     return undefined
   }))

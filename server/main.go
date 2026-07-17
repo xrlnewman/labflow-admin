@@ -177,7 +177,78 @@ func NewRouter(store CareStore, idem idempotencyStore) *gin.Engine {
 		}
 		respond(c, http.StatusOK, f)
 	})
+	api.GET("/samples", func(c *gin.Context) {
+		page, pageSize := pageParams(c)
+		list, total, err := store.ListSamples(c.Request.Context(), page, pageSize, c.Query("status"), c.Query("keyword"))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		respond(c, http.StatusOK, pageData(list, total, page, pageSize))
+	})
+	api.GET("/samples/:id", func(c *gin.Context) {
+		sample, err := store.GetSample(c.Request.Context(), c.Param("id"))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		respond(c, http.StatusOK, sample)
+	})
+	api.POST("/samples", func(c *gin.Context) {
+		var input CreateSampleInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			fail(c, errors.Join(ErrInvalidInput, err))
+			return
+		}
+		sample, err := svc.CreateSample(c.Request.Context(), input, c.GetHeader("Idempotency-Key"))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		respond(c, http.StatusCreated, sample)
+	})
+	api.POST("/samples/:id/receive", sampleActorHandler(func(ctx context.Context, id, actor, key string) (Sample, error) {
+		return svc.ReceiveSample(ctx, id, actor, key)
+	}))
+	api.POST("/samples/:id/start-test", sampleActorHandler(func(ctx context.Context, id, actor, key string) (Sample, error) {
+		return svc.StartSampleTest(ctx, id, actor, key)
+	}))
+	api.POST("/samples/:id/review", sampleActorHandler(func(ctx context.Context, id, actor, key string) (Sample, error) {
+		return svc.ReviewSample(ctx, id, actor, key)
+	}))
+	api.POST("/samples/:id/archive", sampleActorHandler(func(ctx context.Context, id, actor, key string) (Sample, error) {
+		return svc.ArchiveSample(ctx, id, actor, key)
+	}))
+	api.POST("/samples/:id/report", func(c *gin.Context) {
+		var input CreateReportInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			fail(c, errors.Join(ErrInvalidInput, err))
+			return
+		}
+		sample, err := svc.ReportSample(c.Request.Context(), c.Param("id"), input, c.GetHeader("Idempotency-Key"))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		respond(c, http.StatusOK, sample)
+	})
 	return r
+}
+
+func sampleActorHandler(action func(context.Context, string, string, string) (Sample, error)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input SampleActorInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			fail(c, errors.Join(ErrInvalidInput, err))
+			return
+		}
+		sample, err := action(c.Request.Context(), c.Param("id"), input.Actor, c.GetHeader("Idempotency-Key"))
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		respond(c, http.StatusOK, sample)
+	}
 }
 
 func traceMiddleware() gin.HandlerFunc {
