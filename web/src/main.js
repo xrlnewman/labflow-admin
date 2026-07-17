@@ -1,4 +1,5 @@
 import './styles.css'
+import './sample-workspace.css'
 import { createApiClient } from './api.js'
 
 const api = createApiClient()
@@ -40,6 +41,10 @@ const nav = [
 let appointments = demoAppointments.map((item) => ({ ...item }))
 let followupTasks = demoFollowups.map((item) => ({ ...item }))
 let samples = demoSamples.map((item) => ({ ...item }))
+let selectedSampleId = demoSamples[0]?.id || ''
+let sampleStatusFilter = ''
+let sampleKeyword = ''
+let reportDraft = { result: '', remark: '' }
 let dashboard = { ...demoDashboard }
 let page = 'overview'
 let toast = ''
@@ -103,7 +108,7 @@ function header(title) {
 
 function render() {
   const title = nav.find((item) => item[0] === page)?.[1] || '运营总览'
-  const content = page === 'overview' ? overview() : page === 'samples' ? sampleQueue() : page === 'queue' ? queue() : page === 'doctors' ? doctors() : page === 'patients' ? patients() : page === 'followups' ? followups() : mobileView()
+  const content = page === 'overview' ? overview() : page === 'samples' ? sampleWorkspace() : page === 'queue' ? queue() : page === 'doctors' ? doctors() : page === 'patients' ? patients() : page === 'followups' ? followups() : mobileView()
   document.querySelector('#app').innerHTML = `<div class="shell"><aside><div class="brand"><span>✚</span><div><strong>LabFlow</strong><small>实验室运营中心</small></div></div><div class="clinic">● 上海静安联合实验室　⌄</div><p class="caption">样本运营</p><nav>${nav.map((item) => `<button class="${page === item[0] ? 'active' : ''}" data-page="${item[0]}"><i>${item[2]}</i>${item[1]}${item[0] === 'queue' ? '<em>8</em>' : ''}</button>`).join('')}</nav><div class="user"><b>许</b><span><strong>许汝林</strong><small>运营管理员</small></span></div></aside><main>${header(title)}<section class="heading"><div><p>THURSDAY, JUL 16 · LABFLOW</p><h1>${title} <i>✦</i></h1><label>让每一个样本批次，都有清晰可追踪的下一步。</label></div><button class="primary" data-action="create-appointment">＋ 新建样本批次</button></section>${content}<footer>LabFlow 医疗样本检测与质控 · 免费开源 · 演示数据不含真实样本隐私</footer><div class="toast" ${toast ? '' : 'hidden'}>${toast}</div></main></div>`
   bind()
 }
@@ -119,7 +124,7 @@ function queue() {
 function sampleAction(sample) {
   if (sample.status === '待送检') return `<button class="text-action" data-action="receive-sample" data-sample-id="${sample.id}">接收样本</button>`
   if (sample.status === '已接收') return `<button class="text-action" data-action="start-sample-test" data-sample-id="${sample.id}">开始检验</button>`
-  if (sample.status === '检验中') return `<button class="text-action" data-action="report-sample" data-sample-id="${sample.id}">提交报告</button>`
+  if (sample.status === '检验中') return `<button class="text-action" data-action="select-sample" data-sample-id="${sample.id}">填写报告</button>`
   if (sample.status === '待复核') return `<button class="text-action" data-action="review-sample" data-sample-id="${sample.id}">复核报告</button>`
   if (sample.status === '已出报告') return `<button class="text-action" data-action="archive-sample" data-sample-id="${sample.id}">归档报告</button>`
   return '<span class="muted-action">已完成闭环</span>'
@@ -127,6 +132,19 @@ function sampleAction(sample) {
 
 function sampleQueue() {
   return `<section class="panel full"><div class="panel-head"><div><h2>样本送检</h2><p>${dataSource === 'API 数据' ? 'API 实时样本' : '4 条虚构样本'} · 送检、检验、报告和归档全流程</p></div><span class="chip">虚构数据 / 演示流程</span></div><div class="table"><div class="th"><span>样本编号 / 受检者</span><span>样本类型</span><span>检验项目</span><span>状态</span><span>操作</span></div>${samples.length ? samples.map((sample) => `<div class="tr"><span><strong>${sample.id}</strong><small>${sample.subjectAlias}</small></span><span>${sample.sampleType}</span><span>${sample.tests.map((item) => item.name).join('、') || '待配置'}</span><b class="status ${sample.status === '已归档' ? 'green' : sample.status === '待复核' ? 'amber' : 'indigo'}">${sample.status}</b><span>${sampleAction(sample)}</span></div>`).join('') : '<div class="empty">暂无样本，点击新建样本送检</div>'}</div><div class="sample-note">报告结果仅用于演示；样本详情包含完整事件时间线。</div></section>`
+}
+
+function sampleWorkspace() {
+  const normalizedSamples = samples.map(normalizeSample)
+  const filtered = normalizedSamples.filter((sample) => {
+    const keyword = sampleKeyword.trim().toLowerCase()
+    return (!sampleStatusFilter || sample.status === sampleStatusFilter) && (!keyword || [sample.id, sample.subjectAlias, sample.sampleType].some((value) => String(value).toLowerCase().includes(keyword)))
+  })
+  const selected = normalizedSamples.find((sample) => sample.id === selectedSampleId) || filtered[0]
+  if (selected && selected.id !== selectedSampleId) selectedSampleId = selected.id
+  const events = [...(selected?.events || [])].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+  const report = selected?.report || {}
+  return `<section class="panel full sample-workspace"><div class="panel-head"><div><h2>样本送检</h2><p>${dataSource === 'API 数据' ? 'API 实时样本' : '虚构样本演示'} · 送检、检验、报告和归档全流程</p></div><span class="chip">虚构数据 / 演示流程</span></div><div class="sample-filters"><input data-sample-keyword value="${sampleKeyword}" placeholder="搜索样本编号、受检者别名或类型"><select data-sample-status><option value="">全部状态</option>${["待送检", "已接收", "检验中", "待复核", "已出报告", "已归档"].map((status) => `<option value="${status}" ${sampleStatusFilter === status ? 'selected' : ''}>${status}</option>`).join('')}</select></div><div class="table"><div class="th"><span>样本编号 / 受检者</span><span>样本类型</span><span>检验项目</span><span>状态</span><span>操作</span></div>${filtered.length ? filtered.map((sample) => `<div class="tr ${sample.id === selectedSampleId ? 'selected' : ''}"><span><button class="sample-link" data-action="select-sample" data-sample-id="${sample.id}"><strong>${sample.id}</strong><small>${sample.subjectAlias}</small></button></span><span>${sample.sampleType}</span><span>${sample.tests.map((item) => item.name).join('、') || '待配置'}</span><b class="status ${sample.status === '已归档' ? 'green' : sample.status === '待复核' ? 'amber' : 'indigo'}">${sample.status}</b><span>${sampleAction(sample)}</span></div>`).join('') : '<div class="empty">没有匹配样本，调整筛选条件后重试</div>'}</div>${selected ? `<section class="sample-detail"><div class="sample-detail-head"><div><span class="eyebrow">样本详情</span><h3>${selected.subjectAlias} · ${selected.sampleType}</h3><p>${selected.id} · 采集时间 ${timeLabel(selected.collectedAt)}</p></div><b class="status ${selected.status === '已归档' ? 'green' : 'indigo'}">${selected.status}</b></div><div class="sample-detail-grid"><div><h4>检验项目</h4><ul>${selected.tests.map((item) => `<li>${item.name} <small>${item.status || '待检验'}</small></li>`).join('') || '<li>暂无检验项目</li>'}</ul></div><div class="report-panel"><h4>报告结果</h4>${selected.status === '检验中' ? `<input data-report-result id="report-result" value="${reportDraft.result || ''}" placeholder="输入结果，例如：阴性"><textarea data-report-remark id="report-remark" placeholder="输入备注">${reportDraft.remark || ''}</textarea><button class="primary small" data-action="submit-sample-report" data-sample-id="${selected.id}">提交报告并进入复核</button>` : `<p class="report-result">${report.result || '暂无报告结果'}</p><p class="report-remark">${report.remark || '暂无备注'}</p>`}</div><div class="timeline-panel"><h4>事件时间线</h4>${events.length ? `<ol>${events.map((event) => `<li><span>${timeLabel(event.createdAt)}</span><div><strong>${event.action}</strong><small>${event.fromStatus} → ${event.toStatus} · ${event.actor}</small></div></li>`).join('')}</ol>` : '<p class="empty-inline">暂无状态事件</p>'}</div></div></section>` : ''}<div class="sample-note">报告结果仅用于演示；样本详情包含完整事件时间线。</div></section>`
 }
 
 function doctors() {
@@ -175,11 +193,40 @@ async function sampleActionHandler(button) {
   const id = button.dataset.sampleId
   const sample = samples.find((item) => item.id === id)
   if (!sample) return
+  if (button.dataset.action === 'select-sample') {
+    selectedSampleId = id
+    try {
+      const detail = await api.getSample(id)
+      samples = samples.map((item) => item.id === id ? normalizeSample(detail) : item)
+    } catch {
+      // Keep fictional summary available when the detail service is offline.
+    }
+    render()
+    return
+  }
+  if (button.dataset.action === 'submit-sample-report') {
+    const result = document.querySelector('[data-report-result]')?.value?.trim() || ''
+    const remark = document.querySelector('[data-report-remark]')?.value?.trim() || ''
+    if (!result) {
+      showToast('请填写报告结果')
+      return
+    }
+    try {
+      await api.reportSample(id, { result, remark })
+      const detail = await api.getSample(id)
+      samples = samples.map((item) => item.id === id ? normalizeSample(detail) : item)
+      reportDraft = { result: '', remark: '' }
+      dataSource = 'API 数据'
+      showToast(`${sample.subjectAlias} 报告已提交，等待复核`)
+    } catch (error) {
+      showToast(`报告提交失败：${error.message}`)
+    }
+    return
+  }
   try {
     let updated
     if (button.dataset.action === 'receive-sample') updated = await api.receiveSample(id, '收样员')
     if (button.dataset.action === 'start-sample-test') updated = await api.startSampleTest(id, '检验员')
-    if (button.dataset.action === 'report-sample') updated = await api.reportSample(id, { result: '阴性', remark: '演示报告，等待复核' })
     if (button.dataset.action === 'review-sample') updated = await api.reviewSample(id, '审核员')
     if (button.dataset.action === 'archive-sample') updated = await api.archiveSample(id, '归档员')
     if (updated) {
@@ -249,10 +296,18 @@ function bind() {
   }))
   document.querySelectorAll('[data-toast]').forEach((element) => element.addEventListener('click', () => showToast(element.dataset.toast)))
   document.querySelectorAll('[data-refresh]').forEach((element) => element.addEventListener('click', () => refreshFromApi()))
+  document.querySelector('[data-sample-status]')?.addEventListener('change', (event) => {
+    sampleStatusFilter = event.target.value
+    render()
+  })
+  document.querySelector('[data-sample-keyword]')?.addEventListener('change', (event) => {
+    sampleKeyword = event.target.value
+    render()
+  })
   document.querySelectorAll('[data-action]').forEach((element) => element.addEventListener('click', () => {
     if (element.dataset.action === 'checkin' || element.dataset.action === 'status') return advanceAppointment(element)
     if (element.dataset.action === 'complete-followup') return completeFollowup(element)
-    if (['receive-sample', 'start-sample-test', 'report-sample', 'review-sample', 'archive-sample'].includes(element.dataset.action)) return sampleActionHandler(element)
+    if (['select-sample', 'submit-sample-report', 'receive-sample', 'start-sample-test', 'report-sample', 'review-sample', 'archive-sample'].includes(element.dataset.action)) return sampleActionHandler(element)
     if (element.dataset.action === 'create-appointment') return createAppointment()
     return undefined
   }))

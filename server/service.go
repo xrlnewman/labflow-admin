@@ -113,6 +113,9 @@ func (s *CareService) transitionSample(ctx context.Context, id, action, actor, k
 	if strings.TrimSpace(key) == "" {
 		return Sample{}, ErrMissingIdempotencyKey
 	}
+	if strings.TrimSpace(actor) == "" {
+		return Sample{}, fmt.Errorf("%w: actor is required", ErrInvalidInput)
+	}
 	resourceKey := "sample:action:" + id + ":" + action + ":" + key
 	if existing, ok, err := s.idem.Get(ctx, resourceKey); err != nil {
 		return Sample{}, err

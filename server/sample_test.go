@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -91,5 +93,27 @@ func TestSampleWritesAreIdempotent(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Fatalf("create should not write transition events, got %d", len(events))
+	}
+}
+
+func TestSampleActorIsRequired(t *testing.T) {
+	store := NewMemoryStore()
+	svc := NewCareService(store, NoopIdempotency{})
+	sample, err := svc.CreateSample(context.Background(), CreateSampleInput{SubjectAlias: "样本-004", SampleType: "血液", Tests: []string{"血常规"}}, "sample-004")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ReceiveSample(context.Background(), sample.ID, "", "receive-004"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("empty actor error = %v", err)
+	}
+}
+
+func TestSampleTestsSchemaReferencesSamples(t *testing.T) {
+	contents, err := os.ReadFile("../deploy/mysql/init.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(contents), "FOREIGN KEY (sample_id) REFERENCES samples(id)") {
+		t.Fatal("sample_tests must reference samples(id)")
 	}
 }

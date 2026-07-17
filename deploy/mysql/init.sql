@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS sample_tests (
   name VARCHAR(128) NOT NULL,
   status VARCHAR(32) NOT NULL,
   created_at VARCHAR(64) NOT NULL,
-  INDEX idx_sample_tests_sample (sample_id, id)
+  INDEX idx_sample_tests_sample (sample_id, id),
+  CONSTRAINT fk_sample_tests_sample FOREIGN KEY (sample_id) REFERENCES samples(id)
 );
 CREATE TABLE IF NOT EXISTS sample_reports (
   id VARCHAR(64) PRIMARY KEY,
